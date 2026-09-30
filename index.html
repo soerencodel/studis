@@ -1,0 +1,1199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latin Study</title>
+<style>
+:root{--bg:#fff;--fg:#1b1b1b;--mute:#6f6f6f;--line:#e4e4e2;--soft:#f5f5f3;--ok:#1f7a3a;--okbg:#e9f5ec;--bad:#b3261e;--badbg:#fbecea}
+@media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#ececec;--mute:#9a9a9a;--line:#2f2f2f;--soft:#202020;--ok:#72d08e;--okbg:#17301f;--bad:#ff8f86;--badbg:#3a1d1b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:24px 16px 80px}
+header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:32px}
+header h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.03em}
+nav button{background:none;border:0;color:var(--mute);font:inherit;padding:4px 0 4px 16px;cursor:pointer}
+nav button.on{color:var(--fg);text-decoration:underline;text-underline-offset:6px}
+h2{font-size:14px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;margin:32px 0 10px}
+p{margin:8px 0}
+.mute{color:var(--mute)}.small{font-size:13px}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 14px;cursor:pointer}
+button:hover{border-color:var(--mute)}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button.link{border:0;padding:2px 6px;color:var(--mute);background:none}
+button.link:hover{color:var(--fg)}
+input[type=text],textarea,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+input[type=text]:focus,textarea:focus,select:focus{outline:none;border-color:var(--mute)}
+textarea{min-height:160px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+.row{display:flex;align-items:center;gap:12px;margin:12px 0;flex-wrap:wrap}
+.row>.lbl{width:92px;color:var(--mute);font-size:14px;flex:none}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{padding:5px 12px;font-size:14px}
+.seg button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.checks{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px}
+.checks label{display:flex;align-items:center;gap:6px;cursor:pointer}
+input[type=range]{width:220px}
+.card{border:1px solid var(--line);border-radius:12px;padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;color:var(--mute);font-size:14px;margin-bottom:16px}
+.big{font-size:26px;font-weight:500;margin:4px 0 2px;word-break:break-word}
+.sub{color:var(--mute)}
+.ask{margin-top:14px;font-weight:600}
+.answer{margin-top:20px}
+.opts{display:grid;gap:8px;margin-top:20px}
+.opts button{text-align:left;padding:10px 14px}
+.opts button .k{color:var(--mute);margin-right:10px;font-size:13px}
+.opts button.good{background:var(--okbg);border-color:var(--ok)}
+.opts button.badpick{background:var(--badbg);border-color:var(--bad)}
+.fb{margin-top:18px;padding:12px 14px;border-radius:8px}
+.fb.good{background:var(--okbg);color:var(--ok)}
+.fb.bad{background:var(--badbg);color:var(--bad)}
+.fb.neutral{background:var(--soft)}
+.fb b{color:var(--fg)}
+.actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center}
+.sels{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.sels select{width:auto;min-width:120px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:500}
+td.warn{color:var(--bad)}
+tr.skip td{color:var(--mute)}
+.score{font-size:40px;font-weight:600}
+.miss{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.kbd{font-size:12px;color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>Latin</h1><nav id="nav"><button data-tab="quiz">Quiz</button><button data-tab="words">Words</button><button data-tab="data">Data</button></nav></header>
+<main id="app"></main>
+</div>
+
+<script id="engine">
+(function (G) {
+'use strict';
+
+/* ---------- text helpers ---------- */
+const MACS = 'āēīōūȳĀĒĪŌŪȲ', PLAIN = 'aeiouyAEIOUY';
+const MAC_RE = /[āēīōūȳĀĒĪŌŪȲ]/g;
+function nfc(s) { return String(s == null ? '' : s).normalize('NFC').replace(/[̀-ͯ]/g, ''); }
+function strip(s) { return nfc(s).replace(MAC_RE, c => PLAIN[MACS.indexOf(c)]); }
+function lo(s) { return strip(s).toLowerCase(); }
+function hasMac(s) { return /[āēīōūȳĀĒĪŌŪȲ]/.test(nfc(s)); }
+function akey(s) { return lo(s).replace(/j/g, 'i').replace(/[^a-z]+/g, ' ').trim(); }
+const pre = (p, arr) => arr.map(e => p + e);
+
+/* ---------- endings ---------- */
+const P6 = [[1, 'sg'], [2, 'sg'], [3, 'sg'], [1, 'pl'], [2, 'pl'], [3, 'pl']];
+const BAM = ['bam', 'bās', 'bat', 'bāmus', 'bātis', 'bant'];
+const BAR = ['bar', 'bāris', 'bātur', 'bāmur', 'bāminī', 'bantur'];
+const BO = ['bō', 'bis', 'bit', 'bimus', 'bitis', 'bunt'];
+const BOR = ['bor', 'beris', 'bitur', 'bimur', 'biminī', 'buntur'];
+const AM = ['am', 'ēs', 'et', 'ēmus', 'ētis', 'ent'];
+const AR = ['ar', 'ēris', 'ētur', 'ēmur', 'ēminī', 'entur'];
+const SA = ['am', 'ās', 'at', 'āmus', 'ātis', 'ant'];
+const SAR = ['ar', 'āris', 'ātur', 'āmur', 'āminī', 'antur'];
+const REM = ['rem', 'rēs', 'ret', 'rēmus', 'rētis', 'rent'];
+const RER = ['rer', 'rēris', 'rētur', 'rēmur', 'rēminī', 'rentur'];
+const SIM = ['im', 'īs', 'it', 'īmus', 'ītis', 'int'];
+const LEM = ['lem', 'lēs', 'let', 'lēmus', 'lētis', 'lent'];
+const PERF = ['ī', 'istī', 'it', 'imus', 'istis', 'ērunt'];
+const PLUP = ['eram', 'erās', 'erat', 'erāmus', 'erātis', 'erant'];
+const FUTP = ['erō', 'eris', 'erit', 'erimus', 'eritis', 'erint'];
+const PSUBJ = ['erim', 'erīs', 'erit', 'erīmus', 'erītis', 'erint'];
+const QSUBJ = ['issem', 'issēs', 'isset', 'issēmus', 'issētis', 'issent'];
+const SUM = {
+  pres: ['sum', 'es', 'est', 'sumus', 'estis', 'sunt'],
+  impf: ['eram', 'erās', 'erat', 'erāmus', 'erātis', 'erant'],
+  fut: ['erō', 'eris', 'erit', 'erimus', 'eritis', 'erunt'],
+  psubj: ['sim', 'sīs', 'sit', 'sīmus', 'sītis', 'sint'],
+  isubj: ['essem', 'essēs', 'esset', 'essēmus', 'essētis', 'essent'],
+};
+
+// Regular conjugations. Endings are added to the root (amō → am-).
+const CJ = {
+  1: { pa: ['ō', 'ās', 'at', 'āmus', 'ātis', 'ant'], pp: ['or', 'āris', 'ātur', 'āmur', 'āminī', 'antur'], iv: 'ā',
+       fut: pre('ā', BO), futp: pre('ā', BOR), ps: ['em', 'ēs', 'et', 'ēmus', 'ētis', 'ent'], psp: ['er', 'ēris', 'ētur', 'ēmur', 'ēminī', 'entur'],
+       inf: 'āre', infp: 'ārī', imp: ['ā', 'āte'], impd: ['āre', 'āminī'], ppa: ['āns', 'antis'], gd: 'and' },
+  2: { pa: ['eō', 'ēs', 'et', 'ēmus', 'ētis', 'ent'], pp: ['eor', 'ēris', 'ētur', 'ēmur', 'ēminī', 'entur'], iv: 'ē',
+       fut: pre('ē', BO), futp: pre('ē', BOR), ps: pre('e', SA), psp: pre('e', SAR),
+       inf: 'ēre', infp: 'ērī', imp: ['ē', 'ēte'], impd: ['ēre', 'ēminī'], ppa: ['ēns', 'entis'], gd: 'end' },
+  3: { pa: ['ō', 'is', 'it', 'imus', 'itis', 'unt'], pp: ['or', 'eris', 'itur', 'imur', 'iminī', 'untur'], iv: 'ē',
+       fut: AM, futp: AR, ps: SA, psp: SAR,
+       inf: 'ere', infp: 'ī', imp: ['e', 'ite'], impd: ['ere', 'iminī'], ppa: ['ēns', 'entis'], gd: 'end' },
+  '3io': { pa: ['iō', 'is', 'it', 'imus', 'itis', 'iunt'], pp: ['ior', 'eris', 'itur', 'imur', 'iminī', 'iuntur'], iv: 'iē',
+       fut: pre('i', AM), futp: pre('i', AR), ps: pre('i', SA), psp: pre('i', SAR),
+       inf: 'ere', infp: 'ī', imp: ['e', 'ite'], impd: ['ere', 'iminī'], ppa: ['iēns', 'ientis'], gd: 'iend' },
+  4: { pa: ['iō', 'īs', 'it', 'īmus', 'ītis', 'iunt'], pp: ['ior', 'īris', 'ītur', 'īmur', 'īminī', 'iuntur'], iv: 'iē',
+       fut: pre('i', AM), futp: pre('i', AR), ps: pre('i', SA), psp: pre('i', SAR),
+       inf: 'īre', infp: 'īrī', imp: ['ī', 'īte'], impd: ['īre', 'īminī'], ppa: ['iēns', 'ientis'], gd: 'iend' },
+};
+const CONJ_CH = { 1: 1, 2: 1, 3: 8, '3io': 10, 4: 10 };
+
+// Irregular verbs: present system written out; perfect system comes from the principal parts.
+const IRR = {
+  sum: { W: 4, pp3: 'fuī', pp4: 'futūrum', act: { pres: SUM.pres, impf: SUM.impf, fut: SUM.fut, psubj: SUM.psubj, isubj: SUM.isubj, imp: ['es', 'este'], inf: 'esse' } },
+  possum: { W: 6, pp3: 'potuī', act: { pres: ['possum', 'potes', 'potest', 'possumus', 'potestis', 'possunt'], impf: pre('pot', SUM.impf), fut: pre('pot', SUM.fut), psubj: pre('pos', SUM.psubj), isubj: pre('poss', ['em', 'ēs', 'et', 'ēmus', 'ētis', 'ent']), inf: 'posse' } },
+  eo: { W: 37, pp3: 'iī', pp4: 'itūrum', act: { pres: ['eō', 'īs', 'it', 'īmus', 'ītis', 'eunt'], impf: pre('ī', BAM), fut: pre('ī', BO), psubj: pre('e', SA), isubj: pre('ī', REM), imp: ['ī', 'īte'], inf: 'īre', ppa: ['iēns', 'euntis'], ger: 'eundī' } },
+  fero: { W: 31, pp3: 'tulī', pp4: 'lātum',
+    act: { pres: ['ferō', 'fers', 'fert', 'ferimus', 'fertis', 'ferunt'], impf: pre('ferē', BAM), fut: pre('fer', AM), psubj: pre('fer', SA), isubj: pre('fer', REM), imp: ['fer', 'ferte'], inf: 'ferre', ppa: ['ferēns', 'ferentis'], ger: 'ferendī', gdv: 'ferendus' },
+    pass: { pres: ['feror', 'ferris', 'fertur', 'ferimur', 'feriminī', 'feruntur'], impf: pre('ferē', BAR), fut: pre('fer', AR), psubj: pre('fer', SAR), isubj: pre('fer', RER), inf: 'ferrī' } },
+  volo: { W: 32, pp3: 'voluī', act: { pres: ['volō', 'vīs', 'vult', 'volumus', 'vultis', 'volunt'], impf: pre('volē', BAM), fut: pre('vol', AM), psubj: pre('vel', SIM), isubj: pre('vel', LEM), inf: 'velle', ppa: ['volēns', 'volentis'] } },
+  nolo: { W: 32, pp3: 'nōluī', act: { pres: ['nōlō', 'nōn vīs', 'nōn vult', 'nōlumus', 'nōn vultis', 'nōlunt'], impf: pre('nōlē', BAM), fut: pre('nōl', AM), psubj: pre('nōl', SIM), isubj: pre('nōl', LEM), imp: ['nōlī', 'nōlīte'], inf: 'nōlle', ppa: ['nōlēns', 'nōlentis'] } },
+  malo: { W: 32, pp3: 'māluī', act: { pres: ['mālō', 'māvīs', 'māvult', 'mālumus', 'māvultis', 'mālunt'], impf: pre('mālē', BAM), fut: pre('māl', AM), psubj: pre('māl', SIM), isubj: pre('māl', LEM), inf: 'mālle' } },
+  fio: { W: 36, pp3: 'factus sum', act: { pres: ['fīō', 'fīs', 'fit', 'fīmus', 'fītis', 'fīunt'], impf: pre('fīē', BAM), fut: pre('fī', AM), psubj: pre('fī', SA), isubj: pre('fie', REM), inf: 'fierī' } },
+};
+const IRR_NAME = { sum: 'sum', possum: 'possum', eo: 'eō', fero: 'ferō', volo: 'volō', nolo: 'nōlō', malo: 'mālō', fio: 'fīō' };
+const IRR_NOUNS = ['vis', 'domus', 'deus', 'iuppiter', 'bos'];
+const UNUS_NAUTA = ['unus', 'ullus', 'nullus', 'solus', 'neuter', 'alius', 'alter', 'uter', 'totus'];
+
+/* ---------- import parsing ---------- */
+function splitLine(line) {
+  const m = line.match(/\s*(?:—|–|--|\t|\s-\s|\s=\s)\s*/);
+  if (!m) return null;
+  return [line.slice(0, m.index).trim(), line.slice(m.index + m[0].length).trim()];
+}
+
+function parseGender(tl) {
+  const m = tl.match(/^(m|f|n|c)\.?(?:\s*(?:\/|or|&|and)\s*(m|f|n)\.?)?(\s*pl\.?)?$/);
+  if (!m) return null;
+  let g = m[1];
+  if (m[2]) g = (g === 'n' || m[2] === 'n') ? 'n' : 'mf';
+  if (g === 'c') g = 'mf';
+  return { g, pl: !!m[3] };
+}
+
+const POS_RE = /^(adj|adv|prep|conj|interj|indecl|pron|num|interrog|enclitic)\.?(\s|$)/;
+function tokenize(latin) {
+  let s = latin, iStem = false, gender = null, plural = false, gen1 = null, pos = null;
+  if (/\(\s*i\s*\)/i.test(s)) { iStem = true; s = s.replace(/\(\s*i\s*\)/ig, ' '); }
+  s = s.replace(/\([^)]*\)/g, ' ').replace(/\[[^\]]*\]/g, ' ');
+  const toks = [];
+  for (let t of s.split(',')) {
+    t = t.replace(/\s*\+.*$/, '').trim();
+    if (!t) continue;
+    const tl = lo(t);
+    const g = parseGender(tl);
+    if (g) { gender = g.g; if (g.pl) plural = true; continue; }
+    if (/^pl\.?$/.test(tl)) { plural = true; continue; }
+    const pm = tl.match(POS_RE);
+    if (pm) { pos = pos || pm[1]; continue; }
+    let m = t.match(/^gen\.?\s*(.+)$/i);
+    if (m) { gen1 = m[1].trim(); continue; }
+    m = t.match(/^(.*\S)\s+((?:m|f|n|c)\.(?:\s*\/\s*(?:m|f|n)\.)?(?:\s*pl\.?)?)$/i);
+    if (m) { const g2 = parseGender(lo(m[2])); if (g2) { gender = g2.g; if (g2.pl) plural = true; t = m[1]; } }
+    toks.push(t);
+  }
+  return { toks, iStem, gender, plural, gen1, pos };
+}
+
+// Expand an abbreviated ending ("-ae") against the headword ("puella").
+function expand(base, ab) {
+  const b = lo(base), a = lo(ab);
+  const start = Math.max(0, b.length - 4);
+  for (let k = Math.min(3, a.length); k >= 1; k--) {
+    const i = b.lastIndexOf(a.slice(0, k));
+    if (i >= start && i > 0) return base.slice(0, i) + ab;
+  }
+  if (/er$/.test(b)) return base + ab;
+  const m = b.match(/(us|um|is|es|os|a|e)$/);
+  if (m) return base.slice(0, b.length - m[1].length) + ab;
+  return null;
+}
+// Verbs: "amō, -āre, -āvī, -ātum" → root am-
+function vexpand(base, ab) {
+  const m = lo(base).match(/(eo|io|o|eor|ior|or)$/);
+  if (!m) return null;
+  return base.slice(0, base.length - m[1].length) + ab;
+}
+
+function syll(s) {
+  const x = lo(s).replace(/qu/g, 'q').replace(/^i(?=[aeiou])/, 'j').replace(/(ae|au|oe|eu)/g, 'a');
+  return (x.match(/[aeiouy]/g) || []).length;
+}
+function isIStem(nom, gen, gender) {
+  const n = lo(nom), g = lo(gen), stem = g.slice(0, -2);
+  if (gender === 'n') return /(e|al|ar)$/.test(n);
+  if (/(is|es)$/.test(n) && syll(n) === syll(g)) return true;
+  if (syll(n) === 1 && /[sx]$/.test(n) && /[^aeiouy]{2}$/.test(stem)) return true;
+  return false;
+}
+
+const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' };
+const GLAB = { m: 'm.', f: 'f.', n: 'n.', mf: 'm./f.' };
+const POS_NAME = { adv: 'adverb', prep: 'preposition', conj: 'conjunction', interj: 'interjection', pron: 'pronoun', num: 'numeral', indecl: 'indeclinable', interrog: 'interrogative', enclitic: 'enclitic', adj: 'adjective' };
+
+function parseLine(raw) {
+  const line = nfc(raw).replace(/[^\S\t]+/g, ' ').trim();
+  if (!line || line.startsWith('#')) return null;
+  const sp = splitLine(line);
+  if (!sp || !sp[0] || !sp[1]) return { line, error: 'No “—” between the Latin and the English.' };
+  const w = { line, latin: sp[0], english: sp[1], lemma: '', type: 'other', label: 'vocab only', warn: null, mac: hasMac(sp[0]) };
+  classify(w);
+  return w;
+}
+
+function classify(w) {
+  const T = tokenize(w.latin);
+  let t = T.toks;
+  if (!t.length) { w.warn = 'Could not read the Latin.'; return; }
+  w.lemma = t[0];
+  if (T.pos && T.pos !== 'adj') { w.label = (POS_NAME[T.pos] || T.pos) + ' (vocab only)'; return; }
+  const l0 = lo(t[0]);
+  const l1raw = t[1] ? lo(t[1]).replace(/^-/, '') : '';
+  const verbish = t.length >= 2 && /(o|or)$/.test(l0) && /(re|ri|i)$/.test(l1raw);
+  t = t.map((x, i) => (i && x.startsWith('-')) ? (verbish ? vexpand(t[0], x.slice(1)) : expand(t[0], x.slice(1))) : x);
+  if (t.some(x => x == null)) { w.warn = 'Could not expand an abbreviated ending. Write the form out in full.'; return; }
+  const L = t.map(lo);
+
+  // defective verbs (ōdī, meminī)
+  if (t.length >= 2 && /i$/.test(L[0]) && /isse$/.test(L[1])) { w.label = 'defective verb (vocab only)'; w.warn = 'Defective verb, so it is quizzed as vocab only.'; return; }
+
+  // irregular verbs
+  const irr = detectIrr(t, L);
+  if (irr) {
+    const I = IRR[irr.irr];
+    const v = { irr: irr.irr, prefix: irr.prefix, conj: 3 };
+    const pp3 = t[2] || (irr.prefix + I.pp3);
+    const pp4 = t[3] || (I.pp4 ? irr.prefix + I.pp4 : null);
+    if (irr.irr === 'fio') { v.ppp = pp3.split(' ')[0].slice(0, -2); }
+    else {
+      if (/i$/.test(lo(pp3))) v.perf = pp3.slice(0, -1);
+      const pi = pp4 && ppInfo(pp4);
+      if (pi) { v.fap = pi.fap; if (pi.ppp && I.pass) { v.ppp = pi.ppp; v.pass = true; } }
+    }
+    w.type = 'verb'; w.v = v;
+    w.label = 'irregular verb (' + (irr.prefix ? 'compound of ' : '') + IRR_NAME[irr.irr] + ')';
+    return;
+  }
+
+  // regular verbs
+  if (t.length >= 2 && /(o|or)$/.test(L[0]) && /(are|ere|ire|ari|eri|iri|i)$/.test(L[1]) && !/is$/.test(L[1])) {
+    const dep = /or$/.test(L[0]);
+    let conj = null;
+    if (!dep) {
+      if (/are$/.test(L[1])) conj = 1;
+      else if (/eo$/.test(L[0]) && /ere$/.test(L[1])) conj = 2;
+      else if (/io$/.test(L[0]) && /ire$/.test(L[1])) conj = 4;
+      else if (/io$/.test(L[0]) && /ere$/.test(L[1])) conj = '3io';
+      else if (/ere$/.test(L[1])) conj = 3;
+    } else {
+      if (/ari$/.test(L[1]) && !/(eor|ior)$/.test(L[0])) conj = 1;
+      else if (/eor$/.test(L[0]) && /eri$/.test(L[1])) conj = 2;
+      else if (/ior$/.test(L[0]) && /iri$/.test(L[1])) conj = 4;
+      else if (/ior$/.test(L[0]) && /i$/.test(L[1])) conj = '3io';
+      else if (/i$/.test(L[1])) conj = 3;
+    }
+    if (conj) {
+      const cut = (dep && (conj === 3 || conj === '3io')) ? 1 : 3;
+      const v = { conj, dep, root: t[1].slice(0, -cut) };
+      const warns = [];
+      if (dep) {
+        if (t[2] && /us sum$/.test(L[2])) { v.ppp = t[2].split(' ')[0].slice(0, -2); v.fap = v.ppp; }
+        else warns.push('Missing the perfect (e.g. “hortātus sum”), so perfect forms are skipped.');
+      } else if (t[2] && /us sum$/.test(L[2])) {
+        v.semi = true; v.ppp = t[2].split(' ')[0].slice(0, -2); v.fap = v.ppp;
+      } else {
+        if (t[2] && /i$/.test(L[2])) v.perf = t[2].slice(0, -1);
+        else warns.push('No perfect stem given, so perfect active forms are skipped.');
+        const pi = t[3] && ppInfo(t[3]);
+        if (pi) { v.fap = pi.fap; if (pi.ppp) { v.ppp = pi.ppp; v.pass = true; } }
+      }
+      if ((conj === 3 && (/duco$/.test(L[0]) || L[0] === 'dico')) || L[0] === 'facio') v.shortImp = true;
+      w.type = 'verb'; w.v = v;
+      const cn = conj === '3io' ? '3rd conj. -iō' : ORD[conj] + ' conj.';
+      w.label = cn + ' verb' + (dep ? ' (deponent)' : v.semi ? ' (semi-deponent)' : (!v.pass ? ', no passive' : ''));
+      if (warns.length) w.warn = warns.join(' ');
+      return;
+    }
+  }
+
+  // adjectives
+  if (T.gen1 && t.length === 1) {
+    const gen = T.gen1.startsWith('-') ? expand(t[0], T.gen1.slice(1)) : T.gen1;
+    if (gen && /is$/.test(lo(gen))) {
+      w.type = 'adj'; w.a = { kind: 3, m: t[0], f: t[0], n: t[0], stem: gen.slice(0, -2) };
+      w.label = '3rd decl. adjective (1 ending)'; return;
+    }
+  }
+  if (t.length === 3 && !T.gender) {
+    if (/(us|er|ur)$/.test(L[0]) && /a$/.test(L[1]) && /um$/.test(L[2])) {
+      w.type = 'adj'; w.a = { kind: 12, m: t[0], f: t[1], n: t[2], stem: t[1].slice(0, -1), unus: UNUS_NAUTA.includes(L[0]) };
+      w.label = '1st/2nd decl. adjective'; return;
+    }
+    if (/is$/.test(L[1]) && /e$/.test(L[2])) {
+      w.type = 'adj'; w.a = { kind: 3, m: t[0], f: t[1], n: t[2], stem: t[2].slice(0, -1) };
+      w.label = '3rd decl. adjective (3 endings)'; return;
+    }
+  }
+  if (t.length === 2 && !T.gender && /is$/.test(L[0]) && /e$/.test(L[1])) {
+    w.type = 'adj'; w.a = { kind: 3, m: t[0], f: t[0], n: t[1], stem: t[1].slice(0, -1) };
+    w.label = '3rd decl. adjective (2 endings)'; return;
+  }
+  if (T.pos === 'adj' && t.length === 2 && /is$/.test(L[1])) {
+    w.type = 'adj'; w.a = { kind: 3, m: t[0], f: t[0], n: t[0], stem: t[1].slice(0, -2) };
+    w.label = '3rd decl. adjective (1 ending)'; return;
+  }
+
+  // nouns
+  if (t.length >= 2 && (t.length === 2 || T.gender)) {
+    const nom = t[0], gen = t[1], n = L[0], g = L[1];
+    if (IRR_NOUNS.includes(n)) { w.label = 'irregular noun (vocab only)'; w.warn = 'Irregular noun, so it is quizzed as vocab only.'; return; }
+    let decl = 0;
+    if (/ae$/.test(g)) decl = 1;
+    else if (/ei$/.test(g) && /es$/.test(n)) decl = 5;
+    else if (/i$/.test(g) && /(us|um|er|ir|os|on)$/.test(n)) decl = 2;
+    else if (/is$/.test(g)) decl = 3;
+    else if (/us$/.test(g) && /(us|u)$/.test(n)) decl = 4;
+    if (!decl) { w.warn = 'Could not tell the declension, so it is quizzed as vocab only.'; return; }
+    if (T.plural) { w.label = 'plural-only noun (vocab only)'; w.warn = 'Plural-only noun, so it is quizzed as vocab only.'; return; }
+    let gender = T.gender, warn = null;
+    if (!gender) {
+      gender = decl === 1 ? 'f' : decl === 2 ? (/um$/.test(n) ? 'n' : 'm') : decl === 4 ? (/u$/.test(n) ? 'n' : 'm') : decl === 5 ? 'f' : 'mf';
+      warn = 'No gender given, so ' + GLAB[gender] + ' was assumed. Add m./f./n. to be sure.';
+    }
+    const iStem = decl === 3 && (T.iStem || isIStem(nom, gen, gender));
+    w.type = 'noun'; w.n = { decl, gender, nom, gen, iStem };
+    w.label = ORD[decl] + ' decl. noun ' + GLAB[gender] + (iStem ? ', i-stem' : '');
+    w.warn = warn;
+    return;
+  }
+  w.label = 'vocab only';
+}
+
+function detectIrr(t, L) {
+  const l0 = L[0], l1 = L[1] || '';
+  if (l0 === 'possum') return { irr: 'possum', prefix: '' };
+  if (l0 === 'volo' && /lle$/.test(l1)) return { irr: 'volo', prefix: '' };
+  if (l0 === 'nolo' && /lle$/.test(l1)) return { irr: 'nolo', prefix: '' };
+  if (l0 === 'malo' && /lle$/.test(l1)) return { irr: 'malo', prefix: '' };
+  if (l0 === 'fio') return { irr: 'fio', prefix: '' };
+  if (/sum$/.test(l0) && /esse$/.test(l1)) return { irr: 'sum', prefix: t[0].slice(0, -3) };
+  if (/eo$/.test(l0) && /ire$/.test(l1)) return { irr: 'eo', prefix: t[0].slice(0, -2) };
+  if (/fero$/.test(l0) && /rre$/.test(l1)) return { irr: 'fero', prefix: t[0].slice(0, -4) };
+  return null;
+}
+
+// 4th principal part: "-tum/-tus" = perfect passive participle; "-ūrum/-ūrus" = future active participle only (intransitive).
+function ppInfo(pp4) {
+  const l = lo(pp4);
+  if (/ur(us|um)$/.test(l)) return { ppp: null, fap: pp4.slice(0, -4) };
+  if (/(us|um)$/.test(l)) { const s = pp4.slice(0, -2); return { ppp: s, fap: s }; }
+  return null;
+}
+
+function addPrefix(px, f) {
+  if (!px) return f;
+  if (lo(px) === 'pro' && /^[aeiouāēīōū]/.test(f)) return px + 'd' + f;
+  return px + f;
+}
+
+/* ---------- form generation ---------- */
+const CASES = ['nom', 'gen', 'dat', 'acc', 'abl', 'voc'];
+
+function catOf(p) {
+  if (p.c) return p.g ? 'adj' : 'noun';
+  if (p.m === 'part' || p.m === 'gdv' || p.m === 'ger') return 'part';
+  return p.m;
+}
+
+function formCh(p, v) {
+  let F = 1;
+  const pass = p.v === 'pass';
+  const perfSys = ['perf', 'plupf', 'futperf'].includes(p.t);
+  switch (p.m) {
+    case 'ind':
+      if (perfSys) F = pass ? 19 : 12;
+      else if (pass) F = (v.conj === 1 || v.conj === 2) ? 18 : 21;
+      else F = p.t === 'pres' ? 1 : 5;
+      break;
+    case 'subj': F = p.t === 'pres' ? 28 : p.t === 'impf' ? 29 : 30; break;
+    case 'imp': F = 1; break;
+    case 'inf': F = (p.t === 'pres' && p.v === 'act') ? 1 : 25; break;
+    case 'part': case 'gdv': F = 23; break;
+    case 'ger': F = 39; break;
+  }
+  if (v.irr === 'sum' && p.m === 'ind' && (p.t === 'impf' || p.t === 'fut')) F = 6;
+  if ((v.irr === 'sum' || v.irr === 'possum') && p.m === 'subj' && (p.t === 'pres' || p.t === 'impf')) F = 29;
+  let W = v.irr ? IRR[v.irr].W : CONJ_CH[v.conj];
+  if (v.dep) W = 34;
+  if (v.semi && perfSys) W = 34;
+  if (v.semi && p.m === 'part' && p.t === 'fut') W = 34;
+  return Math.max(W, F);
+}
+
+function verbForms(w) {
+  const v = w.v, L = [];
+  const add = (f, p, alts) => { if (f) L.push({ f, p, alts: alts || [], ch: formCh(p, v), cat: catOf(p) }); };
+  const six = (arr, t, m, vo) => { if (arr) arr.forEach((f, i) => add(f, { p: P6[i][0], n: P6[i][1], t, m, v: vo })); };
+  const pv = v.dep ? 'dep' : 'act';
+  let A = null, P = null;
+
+  if (v.irr) {
+    const I = IRR[v.irr];
+    const px = a => Array.isArray(a) ? a.map(f => addPrefix(v.prefix, f)) : addPrefix(v.prefix, a);
+    A = {}; for (const k in I.act) A[k] = px(I.act[k]);
+    if (I.pass && v.pass) { P = {}; for (const k in I.pass) P[k] = px(I.pass[k]); }
+    if (!v.pass) delete A.gdv;
+  } else {
+    const C = CJ[v.conj], r = v.root, iv = C.inf.slice(0, -2);
+    const R = a => Array.isArray(a) ? a.map(e => r + e) : r + a;
+    const nonfin = { ppa: R(C.ppa), ger: r + C.gd + 'ī', gdv: r + C.gd + 'us' };
+    nonfin.ppa[1] = r + C.ppa[1];
+    const pasTbl = { pres: R(C.pp), impf: pre(r + C.iv, BAR), fut: R(C.futp), psubj: R(C.psp), isubj: pre(r + iv, RER), inf: r + C.infp };
+    if (v.dep) {
+      A = nonfin;
+      P = Object.assign(pasTbl, { imp: R(C.impd) });
+    } else {
+      A = Object.assign({ pres: R(C.pa), impf: pre(r + C.iv, BAM), fut: R(C.fut), psubj: R(C.ps), isubj: pre(r + iv, REM), imp: R(C.imp), inf: r + C.inf }, nonfin);
+      if (v.shortImp) A.imp[0] = r;
+      if (v.pass) P = pasTbl; else delete A.gdv;
+    }
+  }
+
+  // present system, active
+  six(A.pres, 'pres', 'ind', 'act'); six(A.impf, 'impf', 'ind', 'act'); six(A.fut, 'fut', 'ind', 'act');
+  six(A.psubj, 'pres', 'subj', 'act'); six(A.isubj, 'impf', 'subj', 'act');
+  if (A.imp) { add(A.imp[0], { n: 'sg', t: 'pres', m: 'imp', v: 'act' }); add(A.imp[1], { n: 'pl', t: 'pres', m: 'imp', v: 'act' }); }
+  if (A.inf) add(A.inf, { t: 'pres', m: 'inf', v: 'act' });
+  // present system, passive (or deponent)
+  if (P) {
+    const vo = v.dep ? 'dep' : 'pass';
+    six(P.pres, 'pres', 'ind', vo); six(P.impf, 'impf', 'ind', vo); six(P.fut, 'fut', 'ind', vo);
+    six(P.psubj, 'pres', 'subj', vo); six(P.isubj, 'impf', 'subj', vo);
+    if (P.imp) { add(P.imp[0], { n: 'sg', t: 'pres', m: 'imp', v: vo }); add(P.imp[1], { n: 'pl', t: 'pres', m: 'imp', v: vo }); }
+    add(P.inf, { t: 'pres', m: 'inf', v: vo });
+  }
+  // perfect system, active
+  if (v.perf) {
+    const s = v.perf;
+    const k = f => v.irr === 'eo' ? f.replace(/ii(?=s)/, 'ī') : f;
+    six(pre(s, PERF).map(k), 'perf', 'ind', 'act'); six(pre(s, PLUP), 'plupf', 'ind', 'act'); six(pre(s, FUTP), 'futperf', 'ind', 'act');
+    six(pre(s, PSUBJ), 'perf', 'subj', 'act'); six(pre(s, QSUBJ).map(k), 'plupf', 'subj', 'act');
+    add(k(s + 'isse'), { t: 'perf', m: 'inf', v: 'act' });
+  }
+  // perfect system built on the participle (passive, deponent, semi-deponent, fīō)
+  if (v.ppp && (v.pass || v.dep || v.semi || v.irr === 'fio')) {
+    const S = v.ppp, vo = v.dep ? 'dep' : v.pass ? 'pass' : 'act';
+    const aux = (tbl, t, m) => tbl.forEach((x, i) => {
+      const pl = i > 2;
+      add((pl ? S + 'ī' : S + 'us') + ' ' + x, { p: P6[i][0], n: P6[i][1], t, m, v: vo }, (pl ? [S + 'ae', S + 'a'] : [S + 'a', S + 'um']).map(y => y + ' ' + x));
+    });
+    aux(SUM.pres, 'perf', 'ind'); aux(SUM.impf, 'plupf', 'ind'); aux(SUM.fut, 'futperf', 'ind');
+    aux(SUM.psubj, 'perf', 'subj'); aux(SUM.isubj, 'plupf', 'subj');
+    add(S + 'us esse', { t: 'perf', m: 'inf', v: vo }, [S + 'a esse', S + 'um esse', S + 'ī esse', S + 'us, -a, -um esse']);
+    add(S + 'us', { t: 'perf', m: 'part', v: vo }, [S + 'us, -a, -um', S + 'us, ' + S + 'a, ' + S + 'um']);
+    if (v.pass) add(S + 'um īrī', { t: 'fut', m: 'inf', v: 'pass' });
+  }
+  // participles, gerund, gerundive
+  if (A.ppa) add(A.ppa[0], { t: 'pres', m: 'part', v: pv }, [A.ppa[0] + ', ' + A.ppa[1]]);
+  if (v.fap && v.irr !== 'fio') {
+    const F = v.fap + 'ūrus';
+    add(F, { t: 'fut', m: 'part', v: pv }, [F + ', -a, -um', F + ', ' + v.fap + 'ūra, ' + v.fap + 'ūrum']);
+    const alts = [v.fap + 'ūra esse', v.fap + 'ūrum esse', v.fap + 'ūrī esse', F + ', -a, -um esse'];
+    if (v.irr === 'sum') alts.push(addPrefix(v.prefix, 'fore'));
+    add(F + ' esse', { t: 'fut', m: 'inf', v: pv }, alts);
+    if (v.irr === 'sum') L[L.length - 1].note = addPrefix(v.prefix, 'fore');
+  }
+  if (A.gdv) add(A.gdv, { m: 'gdv' }, [A.gdv + ', -a, -um']);
+  if (A.ger) add(A.ger, { m: 'ger' });
+  return L;
+}
+
+function nounForms(w) {
+  const { decl, gender, nom, gen, iStem } = w.n, neut = gender === 'n';
+  let sg, pl, st, cons = null;
+  const acc2 = {}; // alternates by index in pl
+  if (decl === 1) { st = gen.slice(0, -2); sg = [nom, st + 'ae', st + 'ae', st + 'am', st + 'ā', nom]; pl = pre(st, ['ae', 'ārum', 'īs', 'ās', 'īs', 'ae']); }
+  else if (decl === 2) {
+    st = gen.slice(0, -1);
+    if (neut) { sg = [nom, st + 'ī', st + 'ō', nom, st + 'ō', nom]; pl = pre(st, ['a', 'ōrum', 'īs', 'a', 'īs', 'a']); }
+    else {
+      const n = lo(nom);
+      const voc = /ius$/.test(n) ? nom.slice(0, -3) + 'ī' : /us$/.test(n) ? nom.slice(0, -2) + 'e' : nom;
+      sg = [nom, st + 'ī', st + 'ō', st + 'um', st + 'ō', voc]; pl = pre(st, ['ī', 'ōrum', 'īs', 'ōs', 'īs', 'ī']);
+    }
+  } else if (decl === 3) {
+    st = gen.slice(0, -2);
+    const mk = (i) => neut
+      ? [[nom, gen, st + 'ī', nom, st + (i ? 'ī' : 'e'), nom], pre(st, i ? ['ia', 'ium', 'ibus', 'ia', 'ibus', 'ia'] : ['a', 'um', 'ibus', 'a', 'ibus', 'a'])]
+      : [[nom, gen, st + 'ī', st + 'em', st + 'e', nom], pre(st, ['ēs', i ? 'ium' : 'um', 'ibus', 'ēs', 'ibus', 'ēs'])];
+    [sg, pl] = mk(iStem);
+    if (iStem) { cons = mk(false); if (!neut) acc2[3] = [st + 'īs']; }
+  } else if (decl === 4) {
+    st = gen.slice(0, -2);
+    if (neut) { sg = [nom, gen, st + 'ū', nom, st + 'ū', nom]; pl = pre(st, ['ua', 'uum', 'ibus', 'ua', 'ibus', 'ua']); }
+    else { sg = [nom, gen, st + 'uī', st + 'um', st + 'ū', nom]; pl = pre(st, ['ūs', 'uum', 'ibus', 'ūs', 'ibus', 'ūs']); }
+  } else {
+    st = gen.slice(0, -2);
+    sg = [nom, gen, gen, st + 'em', st + 'ē', nom]; pl = pre(st, ['ēs', 'ērum', 'ēbus', 'ēs', 'ēbus', 'ēs']);
+  }
+  const base = { 1: 2, 2: neut ? 4 : 3, 3: 7, 4: 20, 5: 22 }[decl];
+  const L = [];
+  CASES.forEach((c, i) => {
+    L.push({ f: sg[i], p: { c, n: 'sg' }, alts: [], cat: 'noun', ch: cons && lo(cons[0][i]) !== lo(sg[i]) ? 14 : base });
+  });
+  CASES.forEach((c, i) => {
+    L.push({ f: pl[i], p: { c, n: 'pl' }, alts: acc2[i] || [], note: acc2[i] && acc2[i][0], cat: 'noun', ch: cons && lo(cons[1][i]) !== lo(pl[i]) ? 14 : base });
+  });
+  return L;
+}
+
+function adjForms(w) {
+  const a = w.a, L = [];
+  const put = (g, sg, pl, ch, plAlts, sgCh) => CASES.forEach((c, i) => {
+    L.push({ f: sg[i], p: { c, n: 'sg', g }, alts: [], cat: 'adj', ch: (sgCh && sgCh[i]) || ch });
+    L.push({ f: pl[i], p: { c, n: 'pl', g }, alts: (plAlts && plAlts[i]) || [], note: plAlts && plAlts[i] && plAlts[i][0], cat: 'adj', ch });
+  });
+  const s = a.stem;
+  if (a.kind === 12) {
+    const vocM = /us$/.test(lo(a.m)) ? a.m.slice(0, -2) + 'e' : a.m;
+    let gs = s + 'ī', gsf = s + 'ae', ds = s + 'ō', dsf = s + 'ae', nn = a.n, sgCh = null;
+    if (a.unus) {
+      gs = gsf = lo(a.m) === 'alius' ? 'alterīus' : s + 'īus'; ds = dsf = s + 'ī';
+      if (lo(a.m) === 'alius') nn = 'aliud';
+      sgCh = [0, 9, 9, 0, 0, 0];
+    }
+    put('m', [a.m, gs, ds, s + 'um', s + 'ō', vocM], pre(s, ['ī', 'ōrum', 'īs', 'ōs', 'īs', 'ī']), 4, null, sgCh);
+    put('f', [a.f, gsf, dsf, s + 'am', s + 'ā', a.f], pre(s, ['ae', 'ārum', 'īs', 'ās', 'īs', 'ae']), 4, null, sgCh);
+    put('n', [nn, gs, ds, nn, s + 'ō', nn], pre(s, ['a', 'ōrum', 'īs', 'a', 'īs', 'a']), 4, null, sgCh);
+  } else {
+    const mfPl = pre(s, ['ēs', 'ium', 'ibus', 'ēs', 'ibus', 'ēs']);
+    const alt = { 3: [s + 'īs'] };
+    put('m', [a.m, s + 'is', s + 'ī', s + 'em', s + 'ī', a.m], mfPl, 16, alt);
+    put('f', [a.f, s + 'is', s + 'ī', s + 'em', s + 'ī', a.f], mfPl, 16, alt);
+    put('n', [a.n, s + 'is', s + 'ī', a.n, s + 'ī', a.n], pre(s, ['ia', 'ium', 'ibus', 'ia', 'ibus', 'ia']), 16);
+  }
+  return L;
+}
+
+const CACHE = new Map();
+function forms(w) {
+  if (!w || !['noun', 'adj', 'verb'].includes(w.type)) return [];
+  if (CACHE.has(w.line)) return CACHE.get(w.line);
+  let L = w.type === 'verb' ? verbForms(w) : w.type === 'noun' ? nounForms(w) : adjForms(w);
+  const d = s => w.mac ? s : strip(s);
+  L = L.map(e => {
+    const f = d(e.f), alts = e.alts.map(d);
+    return { f, alts, note: e.note ? d(e.note) : null, p: e.p, ch: e.ch, cat: e.cat, k: pkey(e.p), fk: akey(f), accept: new Set([f, ...alts].map(akey)) };
+  });
+  CACHE.set(w.line, L);
+  return L;
+}
+
+/* ---------- parse labels ---------- */
+const CASE_N = { nom: 'nominative', gen: 'genitive', dat: 'dative', acc: 'accusative', abl: 'ablative', voc: 'vocative' };
+const NUM_N = { sg: 'singular', pl: 'plural' };
+const GEN_N = { m: 'masculine', f: 'feminine', n: 'neuter' };
+const TENSE_N = { pres: 'present', impf: 'imperfect', fut: 'future', perf: 'perfect', plupf: 'pluperfect', futperf: 'future perfect' };
+const MOOD_N = { ind: 'indicative', subj: 'subjunctive', imp: 'imperative', inf: 'infinitive', part: 'participle', gdv: 'gerundive', ger: 'gerund' };
+const VOICE_N = { act: 'active', pass: 'passive', dep: 'deponent' };
+const PERS_N = { 1: '1st person', 2: '2nd person', 3: '3rd person' };
+function pkey(p) { return ['c', 'n', 'g', 'p', 't', 'm', 'v'].map(k => p[k] == null ? '' : String(p[k])).join('|'); }
+function plabel(p) {
+  if (p.c) return [CASE_N[p.c], NUM_N[p.n], p.g && GEN_N[p.g]].filter(Boolean).join(' ');
+  const v = p.v === 'dep' ? '' : (VOICE_N[p.v] + ' ');
+  const dep = p.v === 'dep' ? ' (deponent)' : '';
+  switch (p.m) {
+    case 'ind': case 'subj': return `${PERS_N[p.p]} ${NUM_N[p.n]}, ${TENSE_N[p.t]} ${v}${MOOD_N[p.m]}${dep}`;
+    case 'imp': return `${TENSE_N[p.t]} ${v}imperative, ${NUM_N[p.n]}${dep}`;
+    case 'inf': return `${TENSE_N[p.t]} ${v}infinitive${dep}`;
+    case 'part': return `${TENSE_N[p.t]} ${v}participle${dep}`;
+    case 'gdv': return 'gerundive (future passive participle)';
+    case 'ger': return 'gerund (genitive)';
+  }
+  return '?';
+}
+
+/* ---------- English ---------- */
+const EIRR = {};
+('arise arose arisen,awake awoke awoken,be was been,bear bore borne,beat beat beaten,become became become,begin began begun,bend bent bent,bind bound bound,bite bit bitten,bleed bled bled,blow blew blown,break broke broken,bring brought brought,build built built,burn burned burned,burst burst burst,buy bought bought,cast cast cast,catch caught caught,choose chose chosen,cling clung clung,come came come,cost cost cost,creep crept crept,cut cut cut,deal dealt dealt,dig dug dug,do did done,draw drew drawn,drink drank drunk,drive drove driven,dwell dwelt dwelt,eat ate eaten,fall fell fallen,feed fed fed,feel felt felt,fight fought fought,find found found,flee fled fled,fling flung flung,fly flew flown,forbid forbade forbidden,foresee foresaw foreseen,forget forgot forgotten,forgive forgave forgiven,forsake forsook forsaken,freeze froze frozen,get got gotten,give gave given,go went gone,grind ground ground,grow grew grown,hang hung hung,have had had,hear heard heard,hide hid hidden,hit hit hit,hold held held,hurt hurt hurt,keep kept kept,kneel knelt knelt,know knew known,lay laid laid,lead led led,leap leapt leapt,leave left left,lend lent lent,let let let,lie lay lain,light lit lit,lose lost lost,make made made,mean meant meant,meet met met,overcome overcame overcome,pay paid paid,put put put,quit quit quit,read read read,rend rent rent,rid rid rid,ride rode ridden,ring rang rung,rise rose risen,run ran run,say said said,see saw seen,seek sought sought,sell sold sold,send sent sent,set set set,sew sewed sewn,shake shook shaken,shed shed shed,shine shone shone,shoot shot shot,show showed shown,shut shut shut,sing sang sung,sink sank sunk,sit sat sat,slay slew slain,sleep slept slept,slide slid slid,sow sowed sown,speak spoke spoken,spend spent spent,spit spat spat,split split split,spread spread spread,spring sprang sprung,stand stood stood,steal stole stolen,stick stuck stuck,sting stung stung,strike struck struck,strive strove striven,swear swore sworn,sweep swept swept,swim swam swum,swing swung swung,take took taken,teach taught taught,tear tore torn,tell told told,think thought thought,throw threw thrown,thrust thrust thrust,tread trod trodden,undergo underwent undergone,understand understood understood,undertake undertook undertaken,wake woke woken,wear wore worn,weep wept wept,win won won,wind wound wound,withdraw withdrew withdrawn,withstand withstood withstood,write wrote written')
+  .split(',').forEach(x => { const [a, b, c] = x.split(' '); EIRR[a] = [b, c]; });
+const DOUBLE = new Set(['admit', 'commit', 'permit', 'submit', 'omit', 'transmit', 'prefer', 'refer', 'confer', 'defer', 'infer', 'occur', 'incur', 'recur', 'regret', 'control', 'compel', 'expel', 'impel', 'repel', 'rebel', 'equip', 'patrol', 'acquit', 'begin', 'forbid', 'upset']);
+const isCons = c => /[bcdfghjklmnpqrstvz]/.test(c);
+function dbl(w) { return DOUBLE.has(w) || /^[^aeiou]*[aeiou][bdfgklmnprtvz]$/.test(w) && !/[aeiou]{2}/.test(w); }
+function ing(w) {
+  if (w === 'be') return 'being';
+  if (/ie$/.test(w)) return w.slice(0, -2) + 'ying';
+  if (/(ee|oe|ye)$/.test(w)) return w + 'ing';
+  if (/[^aeiou]e$/.test(w) || /[aeiou][^aeiou]e$/.test(w)) return w.slice(0, -1) + 'ing';
+  if (dbl(w)) return w + w.slice(-1) + 'ing';
+  return w + 'ing';
+}
+function edForm(w) {
+  if (/e$/.test(w)) return w + 'd';
+  if (/y$/.test(w) && isCons(w.slice(-2, -1))) return w.slice(0, -1) + 'ied';
+  if (dbl(w)) return w + w.slice(-1) + 'ed';
+  return w + 'ed';
+}
+function s3(w) {
+  if (w === 'have') return 'has'; if (w === 'do') return 'does'; if (w === 'go') return 'goes';
+  if (/(s|x|z|ch|sh|o)$/.test(w)) return w + 'es';
+  if (/y$/.test(w) && isCons(w.slice(-2, -1))) return w.slice(0, -1) + 'ies';
+  return w + 's';
+}
+function engFirst(english) {
+  return String(english).replace(/\([^)]*\)/g, ' ').replace(/\[[^\]]*\]/g, ' ').split(/[;,/]/)[0].toLowerCase().replace(/[^a-z' -]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function engVerb(english) {
+  const s = engFirst(english).replace(/^to /, '');
+  const ws = s.split(' '), base = ws[0], rest = ws.slice(1).join(' ');
+  if (base === 'be') return { be: true, rest };
+  const irr = EIRR[base];
+  return { base, rest, s3: s3(base), past: irr ? irr[0] : edForm(base), pp: irr ? irr[1] : edForm(base), ing: ing(base) };
+}
+const SUBJ = ['I', 'you', 'he/she/it', 'we', 'you (pl.)', 'they'];
+const BE = ['am', 'are', 'is', 'are', 'are', 'are'];
+const WAS = ['was', 'were', 'was', 'were', 'were', 'were'];
+const HAVE = ['have', 'have', 'has', 'have', 'have', 'have'];
+
+function verbEng(ev, p) {
+  const R = ev.rest ? ' ' + ev.rest : '';
+  const act = p.v !== 'pass';
+  if (p.m === 'ind') {
+    const i = (p.p - 1) + (p.n === 'pl' ? 3 : 0), S = SUBJ[i];
+    if (ev.be) {
+      return {
+        pres: `${S} ${BE[i]}${R}`, impf: `${S} ${WAS[i]}${R}`, fut: `${S} will be${R}`,
+        perf: `${S} ${WAS[i]}${R} (${HAVE[i]} been${R})`, plupf: `${S} had been${R}`, futperf: `${S} will have been${R}`,
+      }[p.t];
+    }
+    if (act) return {
+      pres: `${S} ${i === 2 ? ev.s3 : ev.base}${R} (${BE[i]} ${ev.ing}${R})`,
+      impf: `${S} ${WAS[i]} ${ev.ing}${R} (used to ${ev.base}${R})`,
+      fut: `${S} will ${ev.base}${R}`,
+      perf: `${S} ${ev.past}${R} (${HAVE[i]} ${ev.pp}${R})`,
+      plupf: `${S} had ${ev.pp}${R}`,
+      futperf: `${S} will have ${ev.pp}${R}`,
+    }[p.t];
+    return {
+      pres: `${S} ${BE[i]} ${ev.pp}${R} (${BE[i]} being ${ev.pp}${R})`,
+      impf: `${S} ${WAS[i]} being ${ev.pp}${R}`,
+      fut: `${S} will be ${ev.pp}${R}`,
+      perf: `${S} ${WAS[i]} ${ev.pp}${R} (${HAVE[i]} been ${ev.pp}${R})`,
+      plupf: `${S} had been ${ev.pp}${R}`,
+      futperf: `${S} will have been ${ev.pp}${R}`,
+    }[p.t];
+  }
+  const b = ev.be ? 'be' + R : ev.base + R;
+  const ppr = ev.be ? 'been' + R : ev.pp + R;
+  const ingr = ev.be ? 'being' + R : ev.ing + R;
+  if (p.m === 'imp') return `${b}!` + (p.n === 'pl' ? ' (pl.)' : ' (sg.)');
+  if (p.m === 'inf') {
+    if (act) return { pres: `to ${b}`, perf: `to have ${ppr}`, fut: `to be about to ${b}` }[p.t];
+    return { pres: `to be ${ppr}`, perf: `to have been ${ppr}`, fut: `to be about to be ${ppr}` }[p.t];
+  }
+  if (p.m === 'part') {
+    if (p.t === 'pres') return ingr;
+    if (p.t === 'fut') return `about to ${b}`;
+    return act ? `having ${ppr}` : `having been ${ppr}`;
+  }
+  if (p.m === 'gdv') return `(needing) to be ${ppr}`;
+  if (p.m === 'ger') return `of ${ingr}`;
+  return null;
+}
+
+const EPL = { man: 'men', woman: 'women', child: 'children', foot: 'feet', tooth: 'teeth', mouse: 'mice', person: 'people', ox: 'oxen', goose: 'geese', sheep: 'sheep', deer: 'deer', fish: 'fish', life: 'lives', wife: 'wives', knife: 'knives', leaf: 'leaves', wolf: 'wolves', half: 'halves', self: 'selves', thief: 'thieves', shelf: 'shelves', calf: 'calves', loaf: 'loaves', hero: 'heroes', potato: 'potatoes', tomato: 'tomatoes' };
+function plWord(w) {
+  if (EPL[w]) return EPL[w];
+  if (/(s|x|z|ch|sh)$/.test(w)) return w + 'es';
+  if (/y$/.test(w) && isCons(w.slice(-2, -1))) return w.slice(0, -1) + 'ies';
+  return w + 's';
+}
+function plural(s) {
+  const ws = s.split(' ');
+  const i = ws.indexOf('of') > 0 ? ws.indexOf('of') - 1 : ws.length - 1;
+  ws[i] = plWord(ws[i]);
+  return ws.join(' ');
+}
+function nounEng(english, p) {
+  const s = engFirst(english).replace(/^(the|a|an) /, '');
+  const b = p.n === 'pl' ? plural(s) : s;
+  return { nom: `the ${b} (subject)`, gen: `of the ${b}`, dat: `to/for the ${b}`, acc: `the ${b} (object)`, abl: `by/with/from the ${b}`, voc: `O ${b}!` }[p.c];
+}
+function translatable(w, e) { return w.type === 'noun' || (w.type === 'verb' && e.p.m !== 'subj'); }
+function translate(w, e) {
+  if (!translatable(w, e)) return null;
+  if (w.type === 'noun') return nounEng(w.english, e.p);
+  return verbEng(engVerb(w.english), e.p);
+}
+
+/* ---------- vocab answer checking ---------- */
+function engKey(s) {
+  return String(s).toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[^a-z' ]+/g, ' ').replace(/\b(to|the|a|an)\b/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function meanings(english) {
+  const M = new Set(String(english).replace(/\([^)]*\)/g, ' ').split(/[,;/]/).map(engKey).filter(Boolean));
+  M.add(engKey(english));
+  return M;
+}
+function checkEnglish(ans, english) {
+  const M = meanings(english);
+  const A = String(ans).split(/[,;/]/).map(engKey).filter(Boolean);
+  return A.length > 0 && A.some(a => M.has(a));
+}
+
+G.LatinEngine = { parseLine, forms, translate, translatable, plabel, pkey, akey, strip, lo, engFirst, engKey, checkEnglish,
+  CASE_N, NUM_N, GEN_N, TENSE_N, MOOD_N, VOICE_N, PERS_N };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script id="ui">
+(function () {
+'use strict';
+const E = window.LatinEngine;
+const KEY = 'latinStudy.v1';
+const DEFAULT_CFG = { kind: 'vocab', vdir: 'l2e', fmode: 'produce', ans: 'typed', pool: 'all', count: 20, ch: 40,
+  cats: { noun: true, adj: true, ind: true, subj: true, imp: true, inf: true, part: true }, voice: { act: true, pass: true } };
+
+/* ---------- storage ---------- */
+function load() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  d = d && typeof d === 'object' ? d : {};
+  d.words = Array.isArray(d.words) ? d.words : [];
+  d.stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
+  d.cfg = Object.assign({}, DEFAULT_CFG, d.cfg || {});
+  d.cfg.cats = Object.assign({}, DEFAULT_CFG.cats, d.cfg.cats || {});
+  d.cfg.voice = Object.assign({}, DEFAULT_CFG.voice, d.cfg.voice || {});
+  return d;
+}
+let warnedSave = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(D)); }
+  catch (e) { if (!warnedSave) { warnedSave = true; alert('This browser is blocking storage, so changes will be lost when you close the page. Use Data → Export to keep them.'); } }
+}
+let D = load();
+let WORDS = [];
+function reparse() { WORDS = D.words.map(x => { const w = E.parseLine(x.line); return w && !w.error ? Object.assign(w, { id: x.id }) : null; }).filter(Boolean); }
+reparse();
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+/* ---------- helpers ---------- */
+const $app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function stat(id, k) { return (D.stats[id] && D.stats[id][k]) || { r: 0, w: 0, l: null }; }
+function record(id, k, ok) {
+  const s = D.stats[id] = D.stats[id] || {};
+  const x = s[k] = s[k] || { r: 0, w: 0, l: null };
+  if (ok) x.r++; else x.w++;
+  x.l = ok ? 1 : 0; save();
+}
+function flip(id, k) { const x = D.stats[id] && D.stats[id][k]; if (x && x.w > 0) { x.w--; x.r++; x.l = 1; save(); } }
+function missed(id, k) { const x = stat(id, k), n = x.r + x.w; return x.l === 0 || (n > 0 && x.r / n < 0.8); }
+function pct(id, k) { const x = stat(id, k), n = x.r + x.w; return n ? Math.round(100 * x.r / n) + '%' : '–'; }
+
+let view = { tab: 'quiz', quiz: null, preview: null, search: '' };
+
+/* ---------- nav ---------- */
+document.getElementById('nav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  view.tab = b.dataset.tab; render();
+});
+function render() {
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === view.tab));
+  if (view.tab === 'words') renderWords();
+  else if (view.tab === 'data') renderData();
+  else if (view.quiz) view.quiz.done ? renderResults() : renderQuestion();
+  else renderSetup();
+}
+
+/* ---------- quiz setup ---------- */
+function seg(k, opts, cur) {
+  return '<div class="seg">' + opts.map(([v, l]) => `<button data-act="cfg" data-k="${k}" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('') + '</div>';
+}
+function eligibleForms(w, c) {
+  return E.forms(w).filter(e => e.ch <= c.ch && c.cats[e.cat] &&
+    (!e.p.v || (e.p.v === 'act' && c.voice.act) || (e.p.v === 'pass' && c.voice.pass) || (e.p.v === 'dep' && (c.voice.act || c.voice.pass))) &&
+    (c.fmode !== 'translate' || E.translatable(w, e)));
+}
+function poolWords(c) {
+  const k = c.kind === 'vocab' ? 'v' : 'f';
+  let ws = c.pool === 'missed' ? WORDS.filter(w => missed(w.id, k)) : WORDS;
+  if (c.kind === 'forms') ws = ws.filter(w => eligibleForms(w, c).length);
+  return ws;
+}
+function renderSetup() {
+  const c = D.cfg;
+  const n = poolWords(c).length;
+  const CATS = [['noun', 'nouns'], ['adj', 'adjectives'], ['ind', 'indicative'], ['subj', 'subjunctive'], ['imp', 'imperative'], ['inf', 'infinitives'], ['part', 'participles, gerund(ive)']];
+  const modeHelp = { produce: 'You see a word and a form (e.g. genitive plural) and give the Latin form.', parse: 'You see a form and identify it (e.g. case and number).', translate: 'You see a form and translate it, then grade yourself. Subjunctives and adjectives are left out.' };
+  $app.innerHTML = `
+    ${WORDS.length ? '' : '<p class="mute">No words yet. Add some under <b>Words</b>.</p>'}
+    <div class="row"><span class="lbl">Quiz</span>${seg('kind', [['vocab', 'Vocab'], ['forms', 'Forms']], c.kind)}</div>
+    ${c.kind === 'vocab'
+      ? `<div class="row"><span class="lbl">Direction</span>${seg('vdir', [['l2e', 'Latin → English'], ['e2l', 'English → Latin']], c.vdir)}</div>`
+      : `<div class="row"><span class="lbl">Mode</span>${seg('fmode', [['produce', 'Produce'], ['parse', 'Parse'], ['translate', 'Translate']], c.fmode)}</div>
+         <p class="mute small" style="margin-left:104px">${modeHelp[c.fmode]}</p>`}
+    <div class="row"><span class="lbl">Answer</span>${seg('ans', [['typed', 'Typed'], ['mc', 'Multiple choice']], c.ans)}</div>
+    <div class="row"><span class="lbl">Words</span>${seg('pool', [['all', 'All'], ['missed', 'Missed only']], c.pool)}</div>
+    <div class="row"><span class="lbl">Questions</span>${seg('count', [[10, '10'], [20, '20'], [50, '50'], ['all', 'All']], c.count)}</div>
+    ${c.kind === 'forms' ? `
+      <div class="row"><span class="lbl">Up to ch.</span><input type="range" min="1" max="40" value="${c.ch}" data-act="ch"><b id="chv">${c.ch}</b><span class="mute small">Wheelock</span></div>
+      <div class="row"><span class="lbl">Include</span><div class="checks">${CATS.map(([k, l]) => `<label><input type="checkbox" data-act="cat" data-k="${k}" ${c.cats[k] ? 'checked' : ''}>${l}</label>`).join('')}</div></div>
+      <div class="row"><span class="lbl">Voice</span><div class="checks">${[['act', 'active'], ['pass', 'passive']].map(([k, l]) => `<label><input type="checkbox" data-act="voice" data-k="${k}" ${c.voice[k] ? 'checked' : ''}>${l}</label>`).join('')}</div></div>` : ''}
+    <div class="actions" style="margin-top:28px"><button class="primary" data-act="start" ${n ? '' : 'disabled'}>Start</button>
+      <span class="mute small">${n} word${n === 1 ? '' : 's'} available${c.kind === 'forms' ? ' with matching forms' : ''}</span></div>`;
+}
+
+/* ---------- question building ---------- */
+function mcOptions(correct, pool, keyFn) {
+  const seen = new Set([keyFn(correct)]), out = [];
+  for (const x of shuffle(pool)) { const k = keyFn(x); if (!k || seen.has(k)) continue; seen.add(k); out.push(x); if (out.length === 3) break; }
+  return shuffle([{ text: correct, ok: true }, ...out.map(t => ({ text: t, ok: false }))]);
+}
+function entryHtml(w) { return `<div class="big">${esc(w.latin)}</div><div class="sub">${esc(w.english)}</div>`; }
+
+function vocabQ(w, c) {
+  const others = WORDS.filter(x => x.id !== w.id);
+  const same = others.filter(x => x.type === w.type);
+  const src = same.length >= 3 ? same : others;
+  if (c.vdir === 'l2e') {
+    return { wid: w.id, k: 'v', ui: c.ans === 'mc' ? 'mc' : 'typed', html: `<div class="big">${esc(w.latin)}</div>`, plain: w.latin,
+      answer: w.english, check: a => E.checkEnglish(a, w.english), canOverride: true,
+      options: c.ans === 'mc' ? mcOptions(w.english, src.map(x => x.english), s => E.engKey(s)) : null };
+  }
+  const acc = new Set([E.akey(w.lemma), E.akey(w.latin)]);
+  WORDS.forEach(x => { if (x.id !== w.id && E.engKey(x.english) === E.engKey(w.english)) { acc.add(E.akey(x.lemma)); acc.add(E.akey(x.latin)); } });
+  return { wid: w.id, k: 'v', ui: c.ans === 'mc' ? 'mc' : 'typed', html: `<div class="big">${esc(w.english)}</div>`, plain: w.english,
+    answer: w.latin, check: a => acc.has(E.akey(a)), canOverride: true,
+    options: c.ans === 'mc' ? mcOptions(w.latin, src.map(x => x.latin), s => E.akey(s)) : null };
+}
+
+function formQ(w, c) {
+  const all = E.forms(w), elig = eligibleForms(w, c), e = pick(elig);
+  const base = { wid: w.id, k: 'f' };
+  if (c.fmode === 'produce') {
+    const others = elig.filter(x => !e.accept.has(x.fk)).map(x => x.f);
+    const answer = e.f + (e.note ? ' (or ' + e.note + ')' : '');
+    return Object.assign(base, { ui: c.ans === 'mc' ? 'mc' : 'typed', html: entryHtml(w) + `<div class="ask">${esc(E.plabel(e.p))}</div>`,
+      plain: `${w.lemma} → ${E.plabel(e.p)}`, answer, check: a => e.accept.has(E.akey(a)),
+      options: c.ans === 'mc' ? mcOptions(e.f, others.length >= 3 ? others : all.filter(x => !e.accept.has(x.fk)).map(x => x.f), s => E.akey(s)) : null });
+  }
+  if (c.fmode === 'parse') {
+    const valid = all.filter(x => x.accept.has(e.fk));
+    const vkeys = new Set(valid.map(x => x.k));
+    const labels = valid.map(x => E.plabel(x.p));
+    const pool = elig.filter(x => !vkeys.has(x.k)).map(x => E.plabel(x.p));
+    return Object.assign(base, { ui: c.ans === 'mc' ? 'mc' : 'parse', w, sel: {},
+      html: `<div class="big">${esc(e.f)}</div><div class="sub">from ${esc(w.latin)} (${esc(w.english)})</div><div class="ask">Identify this form.</div>`,
+      plain: `${e.f} (${w.lemma})`, answer: [...new Set(labels)].join(' / '), vkeys,
+      options: c.ans === 'mc' ? mcOptions(E.plabel(e.p), pool.length >= 3 ? pool : all.filter(x => !vkeys.has(x.k)).map(x => E.plabel(x.p)), s => s).map(o => Object.assign(o, { ok: labels.includes(o.text) })) : null });
+  }
+  // translate
+  const same = elig.filter(x => x.fk === e.fk);
+  const tr = [...new Set(same.map(x => E.translate(w, x)).filter(Boolean))];
+  const pool = elig.filter(x => x.fk !== e.fk).map(x => E.translate(w, x)).filter(t => t && !tr.includes(t));
+  return Object.assign(base, { ui: c.ans === 'mc' ? 'mc' : 'self',
+    html: `<div class="big">${esc(e.f)}</div><div class="sub">from ${esc(w.latin)} (${esc(w.english)})</div><div class="ask">Translate.</div>`,
+    plain: `${e.f} (${w.lemma})`, answer: tr.join('  |  '),
+    options: c.ans === 'mc' ? mcOptions(E.translate(w, e), pool, s => s).map(o => Object.assign(o, { ok: o.ok || tr.includes(o.text) })) : null });
+}
+
+function startQuiz() {
+  const c = D.cfg, ws = shuffle(poolWords(c));
+  if (!ws.length) return;
+  const qs = [];
+  if (c.kind === 'vocab') {
+    const n = c.count === 'all' ? ws.length : Math.min(+c.count, ws.length);
+    ws.slice(0, n).forEach(w => qs.push(vocabQ(w, c)));
+  } else {
+    const n = c.count === 'all' ? ws.length : +c.count;
+    let order = [];
+    for (let i = 0; i < n; i++) { if (!order.length) order = shuffle(ws); qs.push(formQ(order.pop(), c)); }
+  }
+  view.quiz = { qs, i: 0, done: false };
+  render();
+}
+function retryMisses() {
+  const miss = view.quiz.qs.filter(q => q.ok === false).map(q => {
+    const n = Object.assign({}, q, { state: undefined, ok: undefined, given: undefined, sel: {}, overridden: false });
+    if (n.options) n.options = shuffle(n.options.map(o => ({ text: o.text, ok: o.ok })));
+    return n;
+  });
+  if (!miss.length) return;
+  view.quiz = { qs: shuffle(miss), i: 0, done: false };
+  render();
+}
+
+/* ---------- question screen ---------- */
+const MOODS = ['ind', 'subj', 'imp', 'inf', 'part', 'gdv', 'ger'];
+const FIELDS = { ind: ['t', 'v', 'p', 'n'], subj: ['t', 'v', 'p', 'n'], imp: ['v', 'n'], inf: ['t', 'v'], part: ['t', 'v'], gdv: [], ger: [] };
+const TENSES = { ind: ['pres', 'impf', 'fut', 'perf', 'plupf', 'futperf'], subj: ['pres', 'impf', 'perf', 'plupf'], inf: ['pres', 'perf', 'fut'], part: ['pres', 'perf', 'fut'] };
+function selectHtml(k, opts, q, ph) {
+  return `<select data-sel="${k}"><option value="">${ph}</option>${opts.map(([v, l]) => `<option value="${v}" ${q.sel[k] === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+function parseFields(q) {
+  const w = q.w;
+  const C = Object.entries(E.CASE_N), N = Object.entries(E.NUM_N);
+  if (w.type === 'noun') return [['c', C, 'case'], ['n', N, 'number']];
+  if (w.type === 'adj') return [['c', C, 'case'], ['n', N, 'number'], ['g', Object.entries(E.GEN_N), 'gender']];
+  const f = [['m', MOODS.map(m => [m, E.MOOD_N[m]]), 'mood']];
+  const m = q.sel.m;
+  if (!m) return f;
+  for (const k of FIELDS[m]) {
+    if (k === 't') f.push(['t', TENSES[m].map(t => [t, E.TENSE_N[t]]), 'tense']);
+    if (k === 'v' && !w.v.dep) f.push(['v', [['act', 'active'], ['pass', 'passive']], 'voice']);
+    if (k === 'p') f.push(['p', [[1, '1st person'], [2, '2nd person'], [3, '3rd person']], 'person']);
+    if (k === 'n') f.push(['n', N, 'number']);
+  }
+  return f;
+}
+function parseSelKey(q) {
+  const fs = parseFields(q), p = {};
+  for (const [k] of fs) { if (!q.sel[k]) return null; p[k] = q.sel[k]; }
+  if (q.w.type === 'verb') {
+    if (p.m === 'imp') p.t = 'pres';
+    if (FIELDS[p.m].includes('v') && q.w.v.dep) p.v = 'dep';
+  }
+  return E.pkey(p);
+}
+
+function renderQuestion() {
+  const Q = view.quiz, q = Q.qs[Q.i];
+  q.state = q.state || 'ask';
+  const answered = q.state === 'done';
+  let body = '';
+  if (q.ui === 'typed' || q.ui === 'self') {
+    body = `<div class="answer"><input type="text" id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${q.ui === 'self' ? 'Your translation, then Enter' : 'Your answer, then Enter'}" value="${esc(q.given || '')}" ${q.state !== 'ask' ? 'disabled' : ''}></div>`;
+  } else if (q.ui === 'parse') {
+    body = `<div class="sels" id="sels">${parseFields(q).map(([k, o, ph]) => selectHtml(k, o, q, ph)).join('')}</div>`;
+  } else {
+    body = `<div class="opts">${q.options.map((o, i) => {
+      let cls = '';
+      if (answered) { if (o.ok) cls = 'good'; else if (q.pickI === i) cls = 'badpick'; }
+      return `<button data-act="pick" data-i="${i}" class="${cls}" ${answered ? 'disabled' : ''}><span class="k">${i + 1}</span>${esc(o.text)}</button>`;
+    }).join('')}</div>`;
+  }
+  let fb = '', acts = '';
+  if (q.state === 'ask') {
+    if (q.ui === 'typed' || q.ui === 'parse') acts = `<button class="primary" data-act="submit">Check</button><span class="kbd">Enter</span>`;
+    if (q.ui === 'self') acts = `<button class="primary" data-act="submit">Show answer</button><span class="kbd">Enter</span>`;
+    if (q.ui === 'mc') acts = `<span class="kbd">Press 1–4</span>`;
+  } else if (q.state === 'self') {
+    fb = `<div class="fb neutral">Expected: <b>${esc(q.answer)}</b></div>`;
+    acts = `<button data-act="self" data-ok="1">✓ I was right</button><button data-act="self" data-ok="0">✗ I was wrong</button><span class="kbd">Y / N</span>`;
+  } else {
+    fb = q.ok ? `<div class="fb good">✓ Correct${q.ui !== 'self' ? ` · <b>${esc(q.answer)}</b>` : ''}</div>`
+              : `<div class="fb bad">✗ ${q.ui === 'self' ? 'Marked wrong' : 'Answer'}: <b>${esc(q.answer)}</b></div>`;
+    acts = `<button class="primary" data-act="next">${Q.i + 1 < Q.qs.length ? 'Next' : 'Finish'}</button><span class="kbd">Enter</span>`;
+    if (!q.ok && q.canOverride && q.ui === 'typed') acts += `<button class="link" data-act="override">I was right</button>`;
+  }
+  $app.innerHTML = `<div class="top"><span>${Q.i + 1} / ${Q.qs.length}</span><button class="link" data-act="quit">End quiz</button></div>
+    <div class="card">${q.html}${body}${fb}<div class="actions">${acts}</div></div>`;
+  const inp = document.getElementById('ans');
+  if (inp && q.state === 'ask') inp.focus();
+  else if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  if (q.ui === 'parse' && q.state === 'ask') { const s = document.querySelector('#sels select'); if (s && !Object.keys(q.sel).length) s.focus(); }
+}
+
+function submit() {
+  const q = view.quiz.qs[view.quiz.i];
+  if (q.state !== 'ask') return;
+  if (q.ui === 'typed') {
+    const v = document.getElementById('ans').value.trim();
+    if (!v) return;
+    q.given = v; q.ok = q.check(v); q.state = 'done'; record(q.wid, q.k, q.ok);
+  } else if (q.ui === 'self') {
+    q.given = document.getElementById('ans').value.trim(); q.state = 'self';
+  } else if (q.ui === 'parse') {
+    const k = parseSelKey(q);
+    if (!k) { const s = [...document.querySelectorAll('#sels select')].find(x => !x.value); if (s) s.focus(); return; }
+    q.ok = q.vkeys.has(k); q.state = 'done'; record(q.wid, q.k, q.ok);
+  }
+  renderQuestion();
+}
+function pickOpt(i) {
+  const q = view.quiz.qs[view.quiz.i];
+  if (q.state !== 'ask' || !q.options[i]) return;
+  q.pickI = i; q.ok = q.options[i].ok; q.state = 'done'; record(q.wid, q.k, q.ok);
+  renderQuestion();
+}
+function selfGrade(ok) {
+  const q = view.quiz.qs[view.quiz.i];
+  if (q.state !== 'self') return;
+  q.ok = ok; q.state = 'done'; record(q.wid, q.k, ok);
+  next();
+}
+function next() {
+  const Q = view.quiz;
+  if (Q.i + 1 < Q.qs.length) { Q.i++; renderQuestion(); }
+  else { Q.done = true; renderResults(); }
+}
+
+/* ---------- results ---------- */
+function renderResults() {
+  const Q = view.quiz, asked = Q.qs.filter(q => q.state === 'done');
+  const right = asked.filter(q => q.ok).length, miss = asked.filter(q => !q.ok);
+  $app.innerHTML = `<div class="score">${right} / ${asked.length}</div>
+    <p class="mute">${asked.length ? Math.round(100 * right / asked.length) + '% correct' : 'No questions answered.'}</p>
+    <div class="actions">${miss.length ? '<button class="primary" data-act="retry">Retry misses</button>' : ''}<button data-act="newquiz">New quiz</button></div>
+    ${miss.length ? '<h2>Missed</h2>' + miss.map(q => `<div class="miss">${esc(q.plain)}<br><span class="mute">→ ${esc(q.answer)}</span>${q.given ? `<br><span class="mute small">you: ${esc(q.given)}</span>` : ''}</div>`).join('') : ''}`;
+}
+
+/* ---------- words ---------- */
+const EXAMPLE = `amō, amāre, amāvī, amātum — to love, like
+moneō, -ēre, -uī, -itum — to remind, warn
+puella, -ae, f. — girl
+rēx, rēgis, m. — king
+magnus, -a, -um — large, great
+fortis, forte — strong, brave
+potēns, gen. potentis — powerful
+hortor, hortārī, hortātus sum — to encourage, urge
+semper, adv. — always`;
+function renderWords() {
+  const pv = view.preview;
+  let html = `<h2 style="margin-top:0">Import</h2>
+    <p class="mute small">One word per line, in the form <b>Latin — English</b>. You can use –, --, a tab or “ - ” instead of —. Add <b>(i)</b> to force a 3rd-declension i-stem.</p>
+    <textarea id="imp" placeholder="${esc(EXAMPLE)}">${esc(view.importText || '')}</textarea>
+    <div class="actions"><button class="primary" data-act="preview">Preview</button></div>`;
+  if (pv) {
+    const add = pv.filter(r => r.status === 'new').length;
+    html += `<h2>Preview</h2><table><tr><th>Latin</th><th>English</th><th>Detected</th></tr>${pv.map(r => {
+      if (r.status === 'error') return `<tr><td colspan="2">${esc(r.r.line)}</td><td class="warn">${esc(r.r.error)}</td></tr>`;
+      const note = r.status === 'dup' ? `<br><span class="mute">${r.why}, so it will be skipped</span>` : (r.r.warn ? `<br><span class="warn" style="color:var(--bad)">${esc(r.r.warn)}</span>` : '');
+      return `<tr class="${r.status === 'dup' ? 'skip' : ''}"><td>${esc(r.r.latin)}</td><td>${esc(r.r.english)}</td><td>${esc(r.r.label)}${note}</td></tr>`;
+    }).join('')}</table>
+    <div class="actions"><button class="primary" data-act="save" ${add ? '' : 'disabled'}>Add ${add} word${add === 1 ? '' : 's'}</button><button data-act="cancelpv">Cancel</button></div>`;
+  }
+  const q = E.lo(view.search || '');
+  const list = WORDS.filter(w => !q || E.lo(w.latin + ' ' + w.english).includes(q));
+  html += `<h2>Your words (${WORDS.length})</h2>`;
+  if (WORDS.length) {
+    html += `<input type="text" id="search" placeholder="Search" value="${esc(view.search || '')}">
+      <table style="margin-top:8px"><tr><th>Latin</th><th>English</th><th>Type</th><th title="vocab / forms accuracy">V · F</th><th></th></tr>
+      ${list.map(w => `<tr><td>${esc(w.latin)}</td><td>${esc(w.english)}</td><td class="mute">${esc(w.label)}${w.warn ? `<br><span style="color:var(--bad)">${esc(w.warn)}</span>` : ''}</td>
+        <td class="mute" style="white-space:nowrap">${pct(w.id, 'v')} · ${pct(w.id, 'f')}</td>
+        <td style="white-space:nowrap"><button class="link" data-act="edit" data-id="${w.id}" title="Edit">✎</button><button class="link" data-act="del" data-id="${w.id}" title="Delete">✕</button></td></tr>`).join('')}</table>`;
+  } else html += '<p class="mute">None yet.</p>';
+  $app.innerHTML = html;
+}
+function doPreview() {
+  view.importText = document.getElementById('imp').value;
+  const dupKey = w => E.akey(w.lemma) + '|' + w.label;
+  const bank = new Set(WORDS.map(dupKey)), seen = new Set();
+  view.preview = view.importText.split(/\r?\n/).map(l => E.parseLine(l)).filter(Boolean).map(r => {
+    if (r.error) return { r, status: 'error' };
+    const k = dupKey(r);
+    if (bank.has(k)) return { r, status: 'dup', why: 'already in your words' };
+    if (seen.has(k)) return { r, status: 'dup', why: 'listed twice in this paste' };
+    seen.add(k); return { r, status: 'new' };
+  });
+  renderWords();
+}
+function doSave() {
+  view.preview.filter(r => r.status === 'new').forEach(r => D.words.push({ id: uid(), line: r.r.line }));
+  save(); reparse(); view.preview = null; view.importText = ''; renderWords();
+}
+
+/* ---------- data ---------- */
+function renderData() {
+  $app.innerHTML = `<p class="mute">Your words and stats are saved in this browser only. Export a backup now and then.</p>
+    <div class="actions"><button data-act="export">Export backup (.json)</button><button data-act="restore">Restore from backup…</button>
+    <input type="file" id="file" accept=".json,application/json" hidden></div>
+    <h2>Reset</h2>
+    <div class="actions"><button data-act="resetstats">Reset stats</button><button data-act="delall">Delete all words</button></div>
+    <p class="mute small" style="margin-top:32px">${WORDS.length} words.</p>`;
+}
+function doExport() {
+  const blob = new Blob([JSON.stringify({ app: 'latin-study', v: 1, words: D.words, stats: D.stats, cfg: D.cfg }, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'latin-study-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function doRestore(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    let d;
+    try { d = JSON.parse(r.result); } catch (e) { alert('That file is not valid JSON.'); return; }
+    if (!d || !Array.isArray(d.words) || d.words.some(x => !x || typeof x.line !== 'string')) { alert('That file is not a Latin Study backup.'); return; }
+    if (!confirm(`Replace your current ${WORDS.length} words and stats with ${d.words.length} words from the backup?`)) return;
+    D.words = d.words.map(x => ({ id: String(x.id || uid()), line: x.line }));
+    D.stats = d.stats && typeof d.stats === 'object' ? d.stats : {};
+    if (d.cfg) D.cfg = Object.assign({}, DEFAULT_CFG, d.cfg);
+    save(); reparse(); view.quiz = null; render();
+  };
+  r.readAsText(file);
+}
+
+/* ---------- events ---------- */
+$app.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const a = b.dataset.act, c = D.cfg;
+  switch (a) {
+    case 'cfg': { const k = b.dataset.k; let v = b.dataset.v; if (k === 'count' && v !== 'all') v = +v; c[k] = v; save(); renderSetup(); break; }
+    case 'start': startQuiz(); break;
+    case 'submit': submit(); break;
+    case 'pick': pickOpt(+b.dataset.i); break;
+    case 'self': selfGrade(b.dataset.ok === '1'); break;
+    case 'next': next(); break;
+    case 'override': { const q = view.quiz.qs[view.quiz.i]; if (!q.ok) { q.ok = true; flip(q.wid, q.k); renderQuestion(); } break; }
+    case 'quit': view.quiz.done = true; renderResults(); break;
+    case 'retry': retryMisses(); break;
+    case 'newquiz': view.quiz = null; renderSetup(); break;
+    case 'preview': doPreview(); break;
+    case 'save': doSave(); break;
+    case 'cancelpv': view.preview = null; renderWords(); break;
+    case 'del': {
+      const w = WORDS.find(x => x.id === b.dataset.id);
+      if (w && confirm(`Delete “${w.latin}”?`)) { D.words = D.words.filter(x => x.id !== w.id); delete D.stats[w.id]; save(); reparse(); renderWords(); }
+      break;
+    }
+    case 'edit': {
+      const x = D.words.find(y => y.id === b.dataset.id); if (!x) break;
+      const s = prompt('Edit entry (Latin — English):', x.line);
+      if (s == null) break;
+      const r = E.parseLine(s);
+      if (!r || r.error) { alert(r ? r.error : 'Empty entry.'); break; }
+      x.line = r.line; save(); reparse(); renderWords();
+      break;
+    }
+    case 'export': doExport(); break;
+    case 'restore': document.getElementById('file').click(); break;
+    case 'resetstats': if (confirm('Reset all right/wrong stats?')) { D.stats = {}; save(); renderData(); } break;
+    case 'delall': if (confirm(`Delete all ${WORDS.length} words and their stats? Export a backup first if you want to keep them.`)) { D.words = []; D.stats = {}; save(); reparse(); view.quiz = null; renderData(); } break;
+  }
+});
+$app.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.act === 'ch') { D.cfg.ch = +t.value; document.getElementById('chv').textContent = t.value; }
+  if (t.id === 'search') { view.search = t.value; const pos = t.selectionStart; renderWords(); const s = document.getElementById('search'); s.focus(); s.setSelectionRange(pos, pos); }
+});
+$app.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.act === 'ch') { save(); renderSetup(); }
+  if (t.dataset.act === 'cat') { D.cfg.cats[t.dataset.k] = t.checked; save(); renderSetup(); }
+  if (t.dataset.act === 'voice') { D.cfg.voice[t.dataset.k] = t.checked; save(); renderSetup(); }
+  if (t.id === 'file' && t.files[0]) doRestore(t.files[0]);
+  if (t.dataset.sel) {
+    const q = view.quiz.qs[view.quiz.i];
+    q.sel[t.dataset.sel] = t.value;
+    if (t.dataset.sel === 'm') {
+      for (const k of Object.keys(q.sel)) if (k !== 'm' && !parseFields(q).some(f => f[0] === k)) delete q.sel[k];
+      renderQuestion();
+      const s = [...document.querySelectorAll('#sels select')].find(x => !x.value); if (s) s.focus();
+    }
+  }
+});
+document.addEventListener('keydown', e => {
+  if (view.tab !== 'quiz' || !view.quiz || view.quiz.done) return;
+  const q = view.quiz.qs[view.quiz.i];
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (q.state === 'done') next();
+    else if (q.state === 'ask' && q.ui !== 'mc') submit();
+    return;
+  }
+  if (q.state === 'ask' && q.ui === 'mc' && /^[1-4]$/.test(e.key)) { pickOpt(+e.key - 1); return; }
+  if (q.state === 'self' && /^[yn]$/i.test(e.key)) { e.preventDefault(); selfGrade(e.key.toLowerCase() === 'y'); }
+});
+
+render();
+})();
+</script>
+</body>
+</html>
